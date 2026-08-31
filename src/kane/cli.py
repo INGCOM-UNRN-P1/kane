@@ -18,14 +18,46 @@ app = typer.Typer(
 console = Console()
 
 
-@app.command()
+def generar_seccion_markdown(report: FileInspectionReport) -> str:
+    """Genera sección de inspección binaria y struct mapping para Dredd."""
+    lines = ["## Inspección de Archivos Binarios y Structs (Kane)\n"]
+    lines.append(f"- **Archivo analizado:** `{Path(report.file_path).name}`")
+    lines.append(f"- **Tamaño del archivo:** {report.file_size_bytes} bytes")
+    lines.append(f"- **Registros parseados:** {len(report.records)}")
+    if report.remaining_bytes > 0:
+        lines.append(f"- **Bytes truncados/residuales:** {report.remaining_bytes} B\n")
+        lines.append("> [!WARNING]\n> **Bytes Huérfanos:** El archivo binario contiene bytes finales que no completan un struct completo.\n")
+    else:
+        lines.append("\n> [!TIP]\n> **Estructura Binaria Válida:** Todos los registros corresponden con el tamaño de struct esperado.\n")
+
+    if report.records:
+        lines.append("| Reg # | Campo | Tipo | Offset | Hex Bytes | Valor Interpretado |")
+        lines.append("| :---: | :--- | :---: | :---: | :--- | :--- |")
+        for rec in report.records:
+            for idx, fld in enumerate(rec.fields):
+                reg_str = str(rec.index) if idx == 0 else ""
+                lines.append(f"| {reg_str} | `{fld.name}` | {fld.type_name} | `0x{fld.offset:04X}` | `{fld.raw_bytes_hex}` | `{fld.interpreted_value}` |")
+        lines.append("")
+    return "\n".join(lines)
+
+
+@app.command("inspect")
+@app.command("check")
 def inspect(
     file_path: Path = typer.Argument(..., help="Archivo binario (.bin, .dat) a inspeccionar", exists=True),
     struct_spec: Optional[str] = typer.Option(None, "--struct", "-s", help="Especificación de struct: 'int id, char nombre[20], float nota'"),
-    json_output: bool = typer.Option(False, "--json", help="Emitir salida en formato JSON estructurado")
+    json_output: bool = typer.Option(False, "--json", help="Emitir salida en formato JSON estructurado"),
+    output_md: Optional[Path] = typer.Option(None, "--md", "--output-md", help="Generar sección de reporte en formato Markdown para fusión en Dredd."),
 ):
     """Inspecciona y desglosa el contenido de un archivo binario mapeándolo a un struct C."""
     report = inspect_binary_file(file_path, struct_spec)
+
+    if output_md:
+        md_text = generar_seccion_markdown(report)
+        output_md.parent.mkdir(parents=True, exist_ok=True)
+        output_md.write_text(md_text, encoding="utf-8")
+        console.print(f"[bold green]✓ Sección Markdown generada en:[/bold green] {output_md}")
+        raise typer.Exit(code=0)
 
     if json_output:
         print(json.dumps(report.model_dump(), indent=2, ensure_ascii=False))
@@ -65,6 +97,23 @@ def inspect(
     console.print(table)
     if report.remaining_bytes > 0:
         console.print(f"\n[bold yellow]⚠️ Advertencia: Quedan {report.remaining_bytes} bytes truncados al final del archivo.[/bold yellow]")
+
+
+@app.command("report")
+def report_cmd(
+    file_path: Path = typer.Argument(..., help="Archivo binario (.bin, .dat) a inspeccionar", exists=True),
+    output: Optional[Path] = typer.Option(None, "--output", "-o", help="Ruta de destino del archivo Markdown."),
+    struct_spec: Optional[str] = typer.Option(None, "--struct", "-s", help="Especificación del struct C."),
+):
+    """Genera directamente la sección de reporte Markdown de KANE para Dredd."""
+    report = inspect_binary_file(file_path, struct_spec)
+    md_content = generar_seccion_markdown(report)
+    if output:
+        output.parent.mkdir(parents=True, exist_ok=True)
+        output.write_text(md_content, encoding="utf-8")
+        console.print(f"[bold green]✓ Reporte Markdown generado en:[/bold green] {output}")
+    else:
+        print(md_content)
 
 
 @app.command()
