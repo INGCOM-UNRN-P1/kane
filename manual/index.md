@@ -182,3 +182,53 @@ check-kane:
 ````
 
 Ejecutá `make check-kane` antes de cada commit para asegurar que tu código conserve el estado de aprobación.
+
+---
+
+(manual-kane-arquitectura)=
+## 7. Arquitectura Interna y Mecanismo Técnico
+
+La herramienta **`kane`** implementa un motor de alta precisión basado en:
+
+- **Tecnología Núcleo:** `Linux ptrace Syscall Interceptor + Struct Memory Binary Unpacker + Seccomp BPF Filter`.
+- **Aislamiento y Determinismo:** Diseñada para operar sin efectos colaterales en entornos de integración continua (CI), terminales de estudiantes y servidores docentes headless.
+- **Manejo de Errores Pedagógico:** Todo fallo de sintaxis, memoria o lógica se traduce en una acción prescriptiva concreta con su respectiva justificación técnica.
+
+---
+
+(manual-kane-ecosistema)=
+## 8. Integración y Conexión con el Ecosistema
+
+````{note}
+Ninguna herramienta opera de forma aislada. **`kane`** forma parte del pipeline integral de evaluación, verificación y enseñanza de la cátedra.
+````
+
+### Diagrama de Flujo e Interoperabilidad
+
+````{mermaid}
+graph TD
+    DAT[Archivos Binarios .dat/.bin] --> KAN[Kane: Depurador de E/S]
+    HDR[Headers C: Structs] --> KAN
+    KAN -->|Auditoría de Descriptores| PTRACE[Linux ptrace Engine]
+    KAN -->|Layout en Disco| BRT[Brett: Auditor de Structs]
+    KAN -->|Perfiles Seccomp BPF| NOS[Nostromo: Sandbox Seguro]
+````
+
+### Matriz de Intercambio de Datos
+
+| Canal | Herramientas Conectadas | Tipo de Datos Transferidos |
+| :--- | :--- | :--- |
+| **Entradas (Inputs)** | - `Binarios C y archivos de datos en disco (.bin, .dat)` | Código fuente, AST, binarios, testcases, contratos |
+| **Salidas (Outputs)** | - `brett (verificación de layout en disco)`
+- `nostromo (perfiles seccomp)` | Informes Markdown, diagnósticos Rich, JSON, actas |
+| **Sincronización** | `brett`, `nostromo`, `crowe` | Validación cruzada, flags compartidos y autofix |
+
+### Pipeline de Integración Recomendado
+
+Podés encadenar `kane` con otras herramientas del ecosistema en una única línea de comando:
+
+````{code-block} bash
+# Pipeline de integración típico
+kane dump-struct alumnos.dat --format include/alumno.h
+````
+
