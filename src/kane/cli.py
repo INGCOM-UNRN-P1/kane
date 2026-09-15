@@ -20,7 +20,10 @@ console = Console()
 
 def generar_seccion_markdown(report: FileInspectionReport) -> str:
     """Genera sección de inspección binaria y struct mapping para Dredd."""
-    lines = ["## Inspección de Archivos Binarios y Structs (Kane)\n"]
+    lines = [
+        "<!-- dredd-section: kane v1.0.0 -->\n",
+        "## Inspección de Archivos Binarios y Structs (Kane)\n",
+    ]
     lines.append(f"- **Archivo analizado:** `{Path(report.file_path).name}`")
     lines.append(f"- **Tamaño del archivo:** {report.file_size_bytes} bytes")
     lines.append(f"- **Registros parseados:** {len(report.records)}")
@@ -36,7 +39,9 @@ def generar_seccion_markdown(report: FileInspectionReport) -> str:
         for rec in report.records:
             for idx, fld in enumerate(rec.fields):
                 reg_str = str(rec.index) if idx == 0 else ""
-                lines.append(f"| {reg_str} | `{fld.name}` | {fld.type_name} | `0x{fld.offset:04X}` | `{fld.raw_bytes_hex}` | `{fld.interpreted_value}` |")
+                name_limpio = fld.name.replace("|", "&#124;")
+                val_limpio = str(fld.interpreted_value).replace("|", "&#124;")
+                lines.append(f"| {reg_str} | `{name_limpio}` | {fld.type_name} | `0x{fld.offset:04X}` | `{fld.raw_bytes_hex}` | `{val_limpio}` |")
         lines.append("")
     return "\n".join(lines)
 

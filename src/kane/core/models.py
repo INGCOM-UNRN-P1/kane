@@ -22,6 +22,7 @@ class BinaryRecord(BaseModel):
 
 
 class FileInspectionReport(BaseModel):
+    schema_version: str = "1.0.0"
     file_path: str
     file_size_bytes: int
     struct_size_bytes: Optional[int] = None
