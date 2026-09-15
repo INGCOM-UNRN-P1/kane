@@ -121,6 +121,66 @@ def report_cmd(
         print(md_content)
 
 
+@app.command("doctor")
+def doctor_cmd(
+    json_output: bool = typer.Option(False, "--json", help="Emitir diagnóstico en formato JSON estructurado."),
+) -> None:
+    """Verifica el estado del entorno de inspección binaria KANE (Python, xxd/hexdump, GCC)."""
+    import shutil
+    import sys
+    diagnostico = []
+
+    py_ok = sys.version_info >= (3, 10)
+    diagnostico.append({
+        "componente": "Python Runtime",
+        "estado": "OK" if py_ok else "ERROR",
+        "requerido": True,
+        "detalle": f"Python {sys.version.split()[0]}",
+    })
+
+    xxd_path = shutil.which("xxd") or shutil.which("hexdump")
+    diagnostico.append({
+        "componente": "Herramienta Hexdump (xxd/hexdump)",
+        "estado": "OK" if xxd_path else "ADVERTENCIA",
+        "requerido": False,
+        "detalle": xxd_path or "No encontrado (opcional para volcado hexadecimal interactivo)",
+    })
+
+    gcc_path = shutil.which("gcc")
+    diagnostico.append({
+        "componente": "Compilador GCC",
+        "estado": "OK" if gcc_path else "ADVERTENCIA",
+        "requerido": False,
+        "detalle": gcc_path or "No encontrado (opcional para generar binarios de prueba)",
+    })
+
+    todo_ok = py_ok
+
+    if json_output:
+        payload = {
+            "schema_version": "1.0.0",
+            "herramienta": "kane",
+            "ok": todo_ok,
+            "componentes": diagnostico,
+        }
+        print(json.dumps(payload, indent=2, ensure_ascii=False))
+        raise typer.Exit(code=0 if todo_ok else 1)
+
+    tabla = Table(title="🏥 Diagnóstico del Entorno KANE (doctor)", border_style="cyan")
+    tabla.add_column("Componente", style="bold white")
+    tabla.add_column("Estado", justify="center")
+    tabla.add_column("Detalle")
+
+    for c in diagnostico:
+        color = "bold green" if c["estado"] == "OK" else ("bold yellow" if c["estado"] == "ADVERTENCIA" else "bold red")
+        simbolo = "✓" if c["estado"] == "OK" else ("⚠️" if c["estado"] == "ADVERTENCIA" else "✗")
+        tabla.add_row(c["componente"], f"[{color}]{simbolo} {c['estado']}[/{color}]", c["detalle"])
+
+    console.print(tabla)
+    if not todo_ok:
+        raise typer.Exit(code=1)
+
+
 @app.command()
 def version():
     """Muestra la versión de KANE."""

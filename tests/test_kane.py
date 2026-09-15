@@ -1,5 +1,6 @@
 """Tests unitarios y de integración para KANE."""
 
+import json
 import struct
 from pathlib import Path
 from typer.testing import CliRunner
@@ -8,6 +9,18 @@ from kane.core.struct_mapper import inspect_binary_file
 from kane.plugins.ripley_plugin import KanePlugin
 
 runner = CliRunner()
+
+
+def test_cli_doctor():
+    res = runner.invoke(app, ["doctor"])
+    assert res.exit_code == 0
+    assert "doctor" in res.output.lower()
+
+    res_json = runner.invoke(app, ["doctor", "--json"])
+    assert res_json.exit_code == 0
+    data = json.loads(res_json.output)
+    assert data["herramienta"] == "kane"
+    assert data["ok"] is True
 
 
 def test_inspect_binary_with_struct(tmp_path):
