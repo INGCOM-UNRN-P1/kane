@@ -57,3 +57,21 @@ def test_ripley_plugin(tmp_path):
     res = plugin.run({"source_dir": str(tmp_path)})
     assert res["passed"] is True
     assert res["binary_files_count"] == 1
+
+
+def test_inspect_binary_with_padding(tmp_path):
+    bin_file = tmp_path / "padding.bin"
+    # char c (1B) + 3B padding + int id (4B) = 8B
+    data = struct.pack("<c3s i", b"X", b"\x00\x00\x00", 12345)
+    bin_file.write_bytes(data)
+
+    report = inspect_binary_file(bin_file, "char c, int id")
+    assert report.records_count == 1
+    assert report.struct_size_bytes == 8
+    assert report.has_alignment_padding is True
+    assert report.records[0].fields[0].interpreted_value == b"X"
+    assert report.records[0].fields[1].name == "_pad_1"
+    assert report.records[0].fields[1].is_padding is True
+    assert report.records[0].fields[2].name == "id"
+    assert report.records[0].fields[2].interpreted_value == 12345
+
