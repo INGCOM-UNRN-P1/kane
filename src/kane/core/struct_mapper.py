@@ -154,6 +154,11 @@ def inspect_binary_file(
                     elif f_type in TYPE_MAP:
                         fmt_char = TYPE_MAP[f_type][0]
                         interp_val = struct.unpack(f"<{fmt_char}", chunk)[0]
+                        if isinstance(interp_val, bytes):
+                            # `struct.unpack("<c", ...)` devuelve bytes (b'A'),
+                            # que no es serializable a JSON y rompía `--json`,
+                            # la única salida que un pipeline puede consumir.
+                            interp_val = interp_val.decode("utf-8", errors="replace")
                 except Exception:
                     interp_val = hex_val
 

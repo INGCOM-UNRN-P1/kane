@@ -69,7 +69,9 @@ def test_inspect_binary_with_padding(tmp_path):
     assert report.records_count == 1
     assert report.struct_size_bytes == 8
     assert report.has_alignment_padding is True
-    assert report.records[0].fields[0].interpreted_value == b"X"
+    # Se interpreta como texto, no como bytes: `bytes` no es serializable
+    # a JSON y rompía `--json` (KANE-D0302).
+    assert report.records[0].fields[0].interpreted_value == "X"
     assert report.records[0].fields[1].name == "_pad_1"
     assert report.records[0].fields[1].is_padding is True
     assert report.records[0].fields[2].name == "id"
