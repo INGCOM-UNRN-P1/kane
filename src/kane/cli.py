@@ -8,7 +8,11 @@ from rich.console import Console
 from rich.table import Table
 from rich.panel import Panel
 from kane.core.models import FileInspectionReport
-from kane.core.struct_mapper import inspect_binary_file
+from kane.core.struct_mapper import (
+    EspecificacionInvalida,
+    inspect_binary_file,
+    struct_de_cabecera,
+)
 
 app = typer.Typer(
     name="kane",
@@ -16,6 +20,7 @@ app = typer.Typer(
     add_completion=True
 )
 console = Console()
+err_console = Console(stderr=True)
 
 
 def generar_seccion_markdown(report: FileInspectionReport) -> str:
@@ -27,6 +32,9 @@ def generar_seccion_markdown(report: FileInspectionReport) -> str:
     lines.append(f"- **Archivo analizado:** `{Path(report.file_path).name}`")
     lines.append(f"- **Tamaño del archivo:** {report.file_size_bytes} bytes")
     lines.append(f"- **Registros parseados:** {len(report.records)}")
+    if report.struct_definition:
+        lines.append(f"- **Struct:** `{report.struct_definition}`")
+        lines.append(f"- **Orden de bytes:** {report.byte_order}-endian")
     if report.remaining_bytes > 0:
         lines.append(f"- **Bytes truncados/residuales:** {report.remaining_bytes} B\n")
         lines.append("> [!WARNING]\n> **Bytes Huérfanos:** El archivo binario contiene bytes finales que no completan un struct completo.\n")
@@ -46,6 +54,28 @@ def generar_seccion_markdown(report: FileInspectionReport) -> str:
     return "\n".join(lines)
 
 
+def _inspeccionar(
+    file_path: Path,
+    struct_spec: Optional[str],
+    header: Optional[Path],
+    struct_name: Optional[str],
+    endian: str,
+) -> FileInspectionReport:
+    """Resuelve el struct (spec inline o cabecera .h) e inspecciona; los errores de uso salen con código 2."""
+    try:
+        if struct_spec and header:
+            raise EspecificacionInvalida("usá --struct o --header, no ambos.")
+        if struct_name and not header:
+            raise EspecificacionInvalida("--name solo tiene sentido junto con --header.")
+        if header:
+            nombre, struct_spec = struct_de_cabecera(header, struct_name)
+            err_console.print(f"[dim]Struct '{nombre}' leído de {header.name}: {struct_spec}[/dim]")
+        return inspect_binary_file(file_path, struct_spec, endian=endian)
+    except EspecificacionInvalida as exc:
+        err_console.print(f"[bold red]Error:[/bold red] {exc}")
+        raise typer.Exit(code=2)
+
+
 @app.command("inspect")
 @app.command("check")
 def inspect(
@@ -53,9 +83,13 @@ def inspect(
     struct_spec: Optional[str] = typer.Option(None, "--struct", "-s", help="Especificación de struct: 'int id, char nombre[20], float nota'"),
     json_output: bool = typer.Option(False, "--json", help="Emitir salida en formato JSON estructurado"),
     output_md: Optional[Path] = typer.Option(None, "--md", "--output-md", help="Generar sección de reporte en formato Markdown para fusión en Dredd."),
+    header: Optional[Path] = typer.Option(None, "--header", "-H", help="Cabecera .h de la que se lee la definición del struct", exists=True, dir_okay=False),
+    struct_name: Optional[str] = typer.Option(None, "--name", "-n", help="Nombre del struct dentro de --header (obligatorio si define varios)"),
+    endian: str = typer.Option("little", "--endian", "-e", help="Orden de bytes con que se interpretan los campos multibyte: little o big (no se detecta)"),
 ):
     """Inspecciona y desglosa el contenido de un archivo binario mapeándolo a un struct C."""
-    report = inspect_binary_file(file_path, struct_spec)
+    report = _inspeccionar(file_path, struct_spec, header, struct_name, endian)
+    struct_spec = report.struct_definition
 
     if output_md:
         md_text = generar_seccion_markdown(report)
@@ -100,6 +134,7 @@ def inspect(
             )
 
     console.print(table)
+    console.print(f"[dim]Orden de bytes: {report.byte_order}-endian (los campos multibyte se leen así; kane no lo detecta).[/dim]")
     if report.remaining_bytes > 0:
         console.print(f"\n[bold yellow]⚠️ Advertencia: Quedan {report.remaining_bytes} bytes truncados al final del archivo.[/bold yellow]")
 
@@ -109,9 +144,12 @@ def report_cmd(
     file_path: Path = typer.Argument(..., help="Archivo binario (.bin, .dat) a inspeccionar", exists=True),
     output: Optional[Path] = typer.Option(None, "--output", "-o", help="Ruta de destino del archivo Markdown."),
     struct_spec: Optional[str] = typer.Option(None, "--struct", "-s", help="Especificación del struct C."),
+    header: Optional[Path] = typer.Option(None, "--header", "-H", help="Cabecera .h de la que se lee la definición del struct", exists=True, dir_okay=False),
+    struct_name: Optional[str] = typer.Option(None, "--name", "-n", help="Nombre del struct dentro de --header (obligatorio si define varios)"),
+    endian: str = typer.Option("little", "--endian", "-e", help="Orden de bytes con que se interpretan los campos multibyte: little o big (no se detecta)"),
 ):
     """Genera directamente la sección de reporte Markdown de KANE para Dredd."""
-    report = inspect_binary_file(file_path, struct_spec)
+    report = _inspeccionar(file_path, struct_spec, header, struct_name, endian)
     md_content = generar_seccion_markdown(report)
     if output:
         output.parent.mkdir(parents=True, exist_ok=True)

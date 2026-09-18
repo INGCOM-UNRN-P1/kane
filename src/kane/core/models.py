@@ -30,4 +30,6 @@ class FileInspectionReport(BaseModel):
     remaining_bytes: int = 0
     records: List[BinaryRecord] = Field(default_factory=list)
     has_alignment_padding: bool = False
+    byte_order: str = "little"
+    struct_definition: Optional[str] = None
     passed: bool = True
