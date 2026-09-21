@@ -94,3 +94,12 @@ def test_exit_code_refleja_bytes_residuales(tmp_path):
     assert runner.invoke(app, ["report", str(truncado), "-s", "int v"]).exit_code == 1
     # sin struct: volcado hex, no hay nada que "completar"
     assert runner.invoke(app, ["inspect", str(truncado)]).exit_code == 0
+
+
+def test_readme_no_promete_un_hexdump_anotado():
+    """KANE-D0802: sin struct, el volcado es un preview de 64 bytes sin anotaciones."""
+    from pathlib import Path
+
+    readme = (Path(__file__).resolve().parents[1] / "README.md").read_text(encoding="utf-8")
+    assert "hexadecimal anotado" not in readme
+    assert "64 bytes" in readme

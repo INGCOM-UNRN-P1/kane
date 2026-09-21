@@ -10,7 +10,7 @@
 - Depuración, inspección y visualización interactiva de archivos binarios en disco generados por código C.
 - Decodificación estructurada de datos binarios mapeando un `struct` C, dado en línea (`--struct`) o leído de una cabecera `.h` (`--header` y `--name`).
 - Interpretación de los campos multibyte en little-endian (por defecto) o big-endian (`--endian`). El orden **no se detecta**: lo decide quien sabe qué máquina escribió el archivo, y el reporte lo declara.
-- Volcado hexadecimal anotado (Hex Dump) con colores en terminal Rich indicando campos, tamaños y alineación.
+- Sin `--struct`/`--header`, `inspect` muestra una vista previa hexadecimal de los primeros 64 bytes (sin anotaciones de campos); el desglose por campo, tamaño, offset y alineación aparece al indicar el struct.
 
 ### Qué no cubre (Límites y Delegación)
 - Cálculo de padding y alineación teórica en memoria RAM (delegado a `brett`); kane aplica las mismas reglas de alineación de C para ubicar los campos dentro del archivo.
