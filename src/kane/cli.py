@@ -23,6 +23,23 @@ console = Console()
 err_console = Console(stderr=True)
 
 
+def _version_callback(value: bool) -> None:
+    if value:
+        from kane import __version__
+        console.print(f"[bold cyan]KANE[/bold cyan] versión [green]{__version__}[/green]")
+        raise typer.Exit(code=0)
+
+
+@app.callback()
+def main_callback(
+    version: Optional[bool] = typer.Option(
+        None, "--version", "-v", help="Muestra la versión de KANE.",
+        callback=_version_callback, is_eager=True,
+    ),
+) -> None:
+    pass
+
+
 def generar_seccion_markdown(report: FileInspectionReport) -> str:
     """Genera sección de inspección binaria y struct mapping para Dredd."""
     lines = [
@@ -224,13 +241,6 @@ def doctor_cmd(
     console.print(tabla)
     if not todo_ok:
         raise typer.Exit(code=1)
-
-
-@app.command()
-def version():
-    """Muestra la versión de KANE."""
-    from kane import __version__
-    console.print(f"[bold cyan]KANE[/bold cyan] versión [green]{__version__}[/green]")
 
 
 if __name__ == "__main__":
