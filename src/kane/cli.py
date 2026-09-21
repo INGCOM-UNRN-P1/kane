@@ -54,6 +54,11 @@ def generar_seccion_markdown(report: FileInspectionReport) -> str:
     return "\n".join(lines)
 
 
+def _codigo_salida(report: FileInspectionReport) -> int:
+    """0 si el archivo se parsea completo (`report.passed`); 1 si sobran bytes que no completan un registro."""
+    return 0 if report.passed else 1
+
+
 def _inspeccionar(
     file_path: Path,
     struct_spec: Optional[str],
@@ -96,11 +101,11 @@ def inspect(
         output_md.parent.mkdir(parents=True, exist_ok=True)
         output_md.write_text(md_text, encoding="utf-8")
         console.print(f"[bold green]✓ Sección Markdown generada en:[/bold green] {output_md}")
-        raise typer.Exit(code=0)
+        raise typer.Exit(code=_codigo_salida(report))
 
     if json_output:
         print(json.dumps(report.model_dump(), indent=2, ensure_ascii=False))
-        return
+        raise typer.Exit(code=_codigo_salida(report))
 
     if not struct_spec:
         # Volcado hex estándar
@@ -111,7 +116,7 @@ def inspect(
             f"[bold cyan]Hex Preview:[/bold cyan] {raw[:64].hex(' ')}...",
             title="[bold green]KANE Hex Dump[/bold green]"
         ))
-        return
+        raise typer.Exit(code=_codigo_salida(report))
 
     table = Table(title=f"Inspección de Registros Binarios ({file_path.name})", show_header=True, header_style="bold magenta")
     table.add_column("Reg #", style="cyan", width=6)
@@ -137,6 +142,7 @@ def inspect(
     console.print(f"[dim]Orden de bytes: {report.byte_order}-endian (los campos multibyte se leen así; kane no lo detecta).[/dim]")
     if report.remaining_bytes > 0:
         console.print(f"\n[bold yellow]⚠️ Advertencia: Quedan {report.remaining_bytes} bytes truncados al final del archivo.[/bold yellow]")
+    raise typer.Exit(code=_codigo_salida(report))
 
 
 @app.command("report")
@@ -157,6 +163,7 @@ def report_cmd(
         console.print(f"[bold green]✓ Reporte Markdown generado en:[/bold green] {output}")
     else:
         print(md_content)
+    raise typer.Exit(code=_codigo_salida(report))
 
 
 @app.command("doctor")

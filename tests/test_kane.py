@@ -77,3 +77,19 @@ def test_inspect_binary_with_padding(tmp_path):
     assert report.records[0].fields[2].name == "id"
     assert report.records[0].fields[2].interpreted_value == 12345
 
+
+
+def test_exit_code_refleja_bytes_residuales(tmp_path):
+    """KANE-D0402: `passed` (sin bytes que no completan un registro) condiciona el exit code."""
+    completo = tmp_path / "ok.bin"
+    completo.write_bytes(struct.pack("<i", 1) + struct.pack("<i", 2))
+    truncado = tmp_path / "trunc.bin"
+    truncado.write_bytes(struct.pack("<i", 1) + b"\x01\x02")
+
+    for extra in ([], ["--json"], ["--md", str(tmp_path / "o.md")]):
+        assert runner.invoke(app, ["inspect", str(completo), "-s", "int v", *extra]).exit_code == 0, extra
+        assert runner.invoke(app, ["inspect", str(truncado), "-s", "int v", *extra]).exit_code == 1, extra
+    assert runner.invoke(app, ["report", str(completo), "-s", "int v"]).exit_code == 0
+    assert runner.invoke(app, ["report", str(truncado), "-s", "int v"]).exit_code == 1
+    # sin struct: volcado hex, no hay nada que "completar"
+    assert runner.invoke(app, ["inspect", str(truncado)]).exit_code == 0
