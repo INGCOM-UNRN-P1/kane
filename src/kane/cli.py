@@ -42,8 +42,9 @@ def main_callback(
 
 def generar_seccion_markdown(report: FileInspectionReport) -> str:
     """Genera sección de inspección binaria y struct mapping para Dredd."""
+    status = "ok" if report.passed else "fail"
     lines = [
-        "<!-- dredd-section: kane v1.0.0 -->\n",
+        f"<!-- dredd-section: kane, tool=kane, version=1.0.0, status={status} -->\n",
         "## Inspección de Archivos Binarios y Structs (Kane)\n",
     ]
     lines.append(f"- **Archivo analizado:** `{Path(report.file_path).name}`")
