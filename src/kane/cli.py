@@ -15,6 +15,7 @@ from kane.core.struct_mapper import (
 )
 
 app = typer.Typer(
+    context_settings={"help_option_names": ["-h", "--help"]},
     name="kane",
     help="Simulador y depurador visual de I/O de bajo nivel y archivos binarios en C",
     add_completion=True
