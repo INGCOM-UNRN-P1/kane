@@ -4,9 +4,11 @@ import json
 from pathlib import Path
 from typing import Optional
 import typer
+from yutani.cli import crear_app
 from rich.console import Console
 from rich.table import Table
 from rich.panel import Panel
+from kane import __version__
 from kane.core.models import FileInspectionReport
 from kane.core.struct_mapper import (
     EspecificacionInvalida,
@@ -14,31 +16,17 @@ from kane.core.struct_mapper import (
     struct_de_cabecera,
 )
 
-app = typer.Typer(
-    context_settings={"help_option_names": ["-h", "--help"]},
-    name="kane",
-    help="Simulador y depurador visual de I/O de bajo nivel y archivos binarios en C",
-    add_completion=True
+# Contrato de línea de comandos del ecosistema (-h/--help, --version/-v, errores de datos como
+# mensajes) y textos de Typer en español, desde yutani (N-ECO-14).
+app = crear_app(
+    "kane",
+    __version__,
+    "Simulador y depurador visual de I/O de bajo nivel y archivos binarios en C",
+    add_completion=True,
+    no_args_is_help=False,
 )
 console = Console()
 err_console = Console(stderr=True)
-
-
-def _version_callback(value: bool) -> None:
-    if value:
-        from kane import __version__
-        console.print(f"[bold cyan]KANE[/bold cyan] versión [green]{__version__}[/green]")
-        raise typer.Exit(code=0)
-
-
-@app.callback()
-def main_callback(
-    version: Optional[bool] = typer.Option(
-        None, "--version", "-v", help="Muestra la versión de KANE.",
-        callback=_version_callback, is_eager=True,
-    ),
-) -> None:
-    pass
 
 
 def generar_seccion_markdown(report: FileInspectionReport) -> str:
