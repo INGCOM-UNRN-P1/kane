@@ -59,3 +59,23 @@ kane inspect red.bin --struct "int id, short puerto" --endian big
 - Arreglos de una dimensión de cualquier escalar (`int notas[3]`, `char nombre[20]`); la dimensión puede ser un número o un `#define` numérico de la propia cabecera.
 - El layout supone el ABI LP64 de x86-64 Linux (`long` = 8 bytes) e incluye el padding que inserta el compilador.
 - **No se soportan** (y kane lo informa con un error en vez de adivinar): punteros, struct/union anidados, bit-fields, arreglos multidimensionales, `long double` y tipos que no sean los de arriba.
+
+<!-- p1:referencia:inicio — generado por p1-tools/scripts/readme_generado.py: no editar a mano -->
+
+## Referencia rápida
+
+### Requisitos
+
+- Python ≥ 3.11 y [uv](https://docs.astral.sh/uv/getting-started/installation/).
+
+### Comandos
+
+| Comando | Descripción |
+|:--|:--|
+| `kane check`, `kane inspect` | Inspecciona y desglosa el contenido de un archivo binario mapeándolo a un struct C. |
+| `kane report` | Genera directamente la sección de reporte Markdown de KANE para Dredd. |
+| `kane doctor` | Verifica el estado del entorno de inspección binaria KANE (Python, xxd/hexdump, GCC). |
+
+Ayuda de cada comando: `kane <comando> -h`.
+
+<!-- p1:referencia:fin -->
