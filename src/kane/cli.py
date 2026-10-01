@@ -152,6 +152,79 @@ def inspect(
     raise typer.Exit(code=_codigo_salida(report))
 
 
+# ignore_unknown_options: un negativo («kane bits -7») es el valor y no una opción.
+@app.command("bits", context_settings={"ignore_unknown_options": True})
+def bits_cmd(
+    valor: str = typer.Argument(..., help="Valor o expresión de bits: 42, -7, 0x2A, 0b1010, 'A', 3.5, '0x0F & 0xF3', '~0', '1 << 3'."),
+    tipo: str = typer.Option("int", "--tipo", "-t", help="Tipo de C: char, short, int, long long, int8_t…uint64_t, size_t, float, double (con «unsigned» para los sin signo)."),
+    endian: str = typer.Option("little", "--endian", "-e", help="Orden de los bytes en memoria: little (x86, ARM) o big."),
+    json_output: bool = typer.Option(False, "--json", help="Salida en JSON."),
+):
+    """Muestra cómo queda guardado un valor en un tipo de C, bit a bit, y las operaciones de bits paso a paso."""
+    from kane.core import bits
+
+    try:
+        if endian not in ("little", "big"):
+            raise bits.ValorInvalido("--endian es little o big.")
+        tipo_c = bits.tipo_c(tipo)
+        if bits.es_expresion(valor):
+            resultado, pasos = bits.evaluar_bits(valor, tipo_c, endian)
+        else:
+            literal = bits.interpretar_literal(valor)
+            pasos = []
+            if tipo_c.flotante:
+                resultado = bits.representar_flotante(float(literal), tipo_c, endian)
+            else:
+                if isinstance(literal, float):
+                    raise bits.ValorInvalido(f"{valor} es un número con decimales: usá --tipo float o double.")
+                resultado = bits.representar_entero(literal, tipo_c, endian)
+    except bits.ValorInvalido as exc:
+        err_console.print(f"[bold red]Error:[/bold red] {exc}")
+        raise typer.Exit(code=2)
+
+    if json_output:
+        print(json.dumps({"schema_version": "1.0.0", "herramienta": "kane", "comando": "bits", "entrada": valor,
+                          "resultado": resultado.a_dict(), "pasos": [
+                              {"operacion": p.operacion, "operandos": [o.a_dict() for o in p.operandos],
+                               "resultado": p.resultado.a_dict(), "nota": p.nota} for p in pasos]},
+                         ensure_ascii=False, indent=2))
+        return
+
+    for paso in pasos:
+        tabla_paso = Table(title=f"[bold]{paso.operacion}[/bold]", show_header=False, box=None)
+        tabla_paso.add_column(justify="right", style="dim")
+        tabla_paso.add_column(style="bold cyan")
+        tabla_paso.add_column(justify="right")
+        simbolo = paso.operacion.split()[1] if " " in paso.operacion else "~"
+        for i, operando in enumerate(paso.operandos):
+            prefijo = "" if i == 0 and len(paso.operandos) > 1 else simbolo
+            tabla_paso.add_row(prefijo, bits.agrupar(operando.binario), str(operando.valor_guardado))
+        tabla_paso.add_row("=", bits.agrupar(paso.resultado.binario), str(paso.resultado.valor_guardado))
+        console.print(tabla_paso)
+        if paso.nota:
+            console.print(f"[yellow]⚠ {paso.nota}[/yellow]")
+
+    tabla = Table(title=f"[bold]{valor}[/bold] como [cyan]{resultado.tipo}[/cyan] ({resultado.bits_tipo} bits)",
+                  show_header=False)
+    tabla.add_column(style="bold")
+    tabla.add_column()
+    tabla.add_row("Binario", bits.agrupar(resultado.binario))
+    tabla.add_row("Hexadecimal", resultado.hexadecimal)
+    if isinstance(resultado, bits.RepresentacionFlotante):
+        tabla.add_row("Signo | exponente | mantisa",
+                      f"{resultado.signo} | {resultado.exponente_bits} | {bits.agrupar(resultado.mantisa_bits)}")
+        tabla.add_row("Clase", resultado.clase + (f" (exponente {resultado.exponente})" if resultado.exponente is not None else ""))
+        tabla.add_row("Valor guardado", resultado.valor_guardado)
+    else:
+        tabla.add_row("Valor guardado", str(resultado.valor_guardado))
+        if resultado.valor_guardado != resultado.sin_signo:
+            tabla.add_row("Leído sin signo", str(resultado.sin_signo))
+    tabla.add_row(f"Bytes en memoria ({resultado.orden}-endian)", " ".join(resultado.bytes_en_memoria))
+    console.print(tabla)
+    for linea in resultado.explicacion:
+        console.print(f"• {linea}")
+
+
 @app.command("report")
 def report_cmd(
     file_path: Path = typer.Argument(..., help="Archivo binario (.bin, .dat) a inspeccionar", exists=True),

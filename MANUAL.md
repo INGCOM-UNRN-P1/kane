@@ -14,6 +14,7 @@
 - Decodificación estructurada de datos binarios mapeando un `struct` C, dado en línea (`--struct`) o leído de una cabecera `.h` (`--header` y `--name`).
 - Interpretación de los campos multibyte en little-endian (por defecto) o big-endian (`--endian`). El orden **no se detecta**: lo decide quien sabe qué máquina escribió el archivo, y el reporte lo declara.
 - Sin `--struct`/`--header`, `inspect` muestra una vista previa hexadecimal de los primeros 64 bytes (sin anotaciones de campos); el desglose por campo, tamaño, offset y alineación aparece al indicar el struct.
+- Representación de bits de valores de C (`kane bits`): enteros con y sin signo (complemento a dos y desborde modular), `float` y `double` (IEEE 754) y operaciones de bits paso a paso.
 
 ### Límites de Responsabilidad y Delegación (Qué no cubre)
 - Cálculo de padding y alineación teórica en memoria RAM (delegado a `brett`); kane aplica las mismas reglas de alineación de C para ubicar los campos dentro del archivo.
@@ -128,6 +129,45 @@ Genera directamente la sección de reporte Markdown de KANE para Dredd.
 ```bash
 kane report <file_path>
 ```
+
+### `kane bits`
+
+Muestra cómo queda guardado un valor en un tipo de C, bit a bit: binario agrupado de a 4, hexadecimal,
+valor guardado (y su lectura sin signo), bytes en memoria según el orden y una explicación (complemento
+a dos de los negativos, desborde módulo 2^n cuando el valor no entra en el tipo). Con `float` y `double`,
+el desglose IEEE 754: signo, exponente (con su sesgo), mantisa y clase (normal, subnormal, cero,
+infinito, NaN). Si el valor es una expresión con `&`, `|`, `^`, `~`, `<<` o `>>`, muestra cada
+operación con los operandos alineados bit a bit.
+
+Las expresiones siguen las reglas de C: cada literal es un valor del tipo elegido y, si el tipo es más
+chico que `int` (`char`, `short`, `uint8_t`…), se **promueve a `int`** antes de operar, así que los pasos
+se muestran en 32 bits y el resultado se guarda de vuelta en el tipo (por eso `0xF3 << 2 >> 2` en
+`unsigned char` da 243 y no 51). `>>` de un valor con signo es aritmético (copia el signo, como gcc); un
+`<<` de un negativo o que desborda un tipo con signo se marca como comportamiento indefinido.
+
+#### Argumentos
+| Argumento | Descripción |
+| :--- | :--- |
+| `valor` | Literal de C (`42`, `-7`, `0x2A`, `0b1010`, `052`, `'A'`, `3.5`) o expresión de bits (`'0x0F & 0xF3'`). |
+
+#### Opciones y Banderas
+| Opción | Por defecto | Descripción |
+| :--- | :--- | :--- |
+| `--tipo`, `-t` | `int` | `char`, `short`, `int`, `long long`, `int8_t`…`uint64_t`, `size_t`, `float`, `double` (y sus `unsigned`). `long` no se acepta: mide 64 bits en Linux y 32 en Windows. |
+| `--endian`, `-e` | `little` | Orden de los bytes en memoria: `little` (x86, ARM) o `big`. |
+| `--json` | — | Salida en JSON (`schema_version`, `resultado` y `pasos`). |
+
+#### Ejemplos
+```bash
+kane bits -1 -t int8_t          # complemento a dos: 1111 1111
+kane bits 300 -t uint8_t        # no entra: se guarda 44 (300 módulo 256)
+kane bits 0.1 -t float          # IEEE 754: 0.1 no es exacto en binario
+kane bits '0x0F & 0xF3' -t uint8_t
+kane bits '~0' -t uint16_t
+```
+
+Un valor que no se puede interpretar en el tipo (decimales en un entero, un desplazamiento mayor o
+igual que el ancho del tipo) es un error de uso y sale con 2.
 
 ### `kane doctor`
 

@@ -13,6 +13,7 @@
 - Decodificación estructurada de datos binarios mapeando un `struct` C, dado en línea (`--struct`) o leído de una cabecera `.h` (`--header` y `--name`).
 - Interpretación de los campos multibyte en little-endian (por defecto) o big-endian (`--endian`). El orden **no se detecta**: lo decide quien sabe qué máquina escribió el archivo, y el reporte lo declara.
 - Sin `--struct`/`--header`, `inspect` muestra una vista previa hexadecimal de los primeros 64 bytes (sin anotaciones de campos); el desglose por campo, tamaño, offset y alineación aparece al indicar el struct.
+- Representación de bits de valores de C (`kane bits`): complemento a dos, desborde, IEEE 754 de `float`/`double` y operaciones de bits paso a paso.
 
 ### Qué no cubre (Límites y Delegación)
 - Cálculo de padding y alineación teórica en memoria RAM (delegado a `brett`); kane aplica las mismas reglas de alineación de C para ubicar los campos dentro del archivo.
@@ -73,6 +74,7 @@ kane inspect red.bin --struct "int id, short puerto" --endian big
 | Comando | Descripción |
 |:--|:--|
 | `kane check`, `kane inspect` | Inspecciona y desglosa el contenido de un archivo binario mapeándolo a un struct C. |
+| `kane bits` | Muestra cómo queda guardado un valor en un tipo de C, bit a bit, y las operaciones de bits paso a paso. |
 | `kane report` | Genera directamente la sección de reporte Markdown de KANE para Dredd. |
 | `kane doctor` | Verifica el estado del entorno de inspección binaria KANE (Python, xxd/hexdump, GCC). |
 
