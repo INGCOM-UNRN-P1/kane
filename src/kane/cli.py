@@ -152,6 +152,48 @@ def inspect(
     raise typer.Exit(code=_codigo_salida(report))
 
 
+@app.command("diff")
+def diff_cmd(
+    archivo_a: Path = typer.Argument(..., help="Primer archivo binario", exists=True),
+    archivo_b: Path = typer.Argument(..., help="Segundo archivo binario", exists=True),
+    struct_spec: Optional[str] = typer.Option(None, "--struct", "-s", help="Especificación de struct: 'int id, char nombre[20], float nota'"),
+    header: Optional[Path] = typer.Option(None, "--header", "-H", help="Cabecera .h de la que se lee la definición del struct", exists=True, dir_okay=False),
+    struct_name: Optional[str] = typer.Option(None, "--name", "-n", help="Nombre del struct dentro de --header (obligatorio si define varios)"),
+    endian: str = typer.Option("little", "--endian", "-e", help="Orden de bytes de los campos multibyte: little o big"),
+    json_output: bool = typer.Option(False, "--json", help="Emitir salida en formato JSON estructurado"),
+) -> None:
+    """Compara dos archivos binarios del mismo struct, registro por registro y campo por campo."""
+    from kane.core.comparar import comparar_reportes
+
+    if not struct_spec and not header:
+        err_console.print("[bold red]Error:[/bold red] indicá el struct con --struct o --header.")
+        raise typer.Exit(code=2)
+    a = _inspeccionar(archivo_a, struct_spec, header, struct_name, endian)
+    b = _inspeccionar(archivo_b, a.struct_definition or struct_spec, None, None, endian)
+    resultado = comparar_reportes(a, b)
+
+    if json_output:
+        print(json.dumps(resultado, indent=2, ensure_ascii=False, default=str))
+        raise typer.Exit(code=0 if resultado["iguales"] else 1)
+
+    if resultado["iguales"]:
+        console.print(f"[bold green]✓ Iguales:[/bold green] {resultado['registros_comparados']} registros sin diferencias.")
+        raise typer.Exit(code=0)
+    if a.records_count != b.records_count:
+        console.print(f"[yellow]Cantidad de registros distinta: {a.records_count} contra {b.records_count} "
+                      f"(se comparan los primeros {resultado['registros_comparados']}).[/yellow]")
+    tabla = Table(title=f"Diferencias: {archivo_a.name} ↔ {archivo_b.name}", header_style="bold magenta")
+    tabla.add_column("Reg #", style="cyan")
+    tabla.add_column("Campo", style="yellow")
+    tabla.add_column("Offset", style="dim")
+    tabla.add_column(archivo_a.name, style="red")
+    tabla.add_column(archivo_b.name, style="green")
+    for d in resultado["diferencias"]:
+        tabla.add_row(str(d["registro"]), d["campo"], str(d["offset"]), str(d["valor_a"]), str(d["valor_b"]))
+    console.print(tabla)
+    raise typer.Exit(code=1)
+
+
 # ignore_unknown_options: un negativo («kane bits -7») es el valor y no una opción.
 @app.command("bits", context_settings={"ignore_unknown_options": True})
 def bits_cmd(

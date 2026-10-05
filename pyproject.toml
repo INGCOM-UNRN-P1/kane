@@ -34,6 +34,8 @@ dependencies = [
     "pydantic>=2.0.0",
     # Núcleo común del ecosistema (N-ECO-14): contrato de línea de comandos y textos en español.
     "yutani @ git+https://github.com/INGCOM-UNRN-P1/yutani@cf49348fae40d264006fe07dee2cc9e88dd9c934",
+    # brett es el dueño del layout de structs: kane lee los registros con sus mismos offsets.
+    "brett @ git+https://github.com/INGCOM-UNRN-P1/brett@6cf076390529ee0ec04f7a0bdb7efd86748400d5",
 ]
 
 [project.urls]

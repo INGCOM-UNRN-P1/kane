@@ -307,27 +307,17 @@ def struct_de_cabecera(header: Path, nombre: Optional[str] = None) -> Tuple[str,
 
 
 def _calcular_layout(campos: List[CampoSpec]) -> Tuple[List[Tuple[Optional[CampoSpec], str, int, int, bool]], int, bool]:
-    """Layout con las reglas de alineación de C: (campo, nombre, offset, tamaño, es_padding)."""
-    items: List[Tuple[Optional[CampoSpec], str, int, int, bool]] = []
-    offset = 0
-    max_align = 1
-    hay_padding = False
-    for campo in campos:
-        alinea = campo.alineacion
-        max_align = max(max_align, alinea)
-        if offset % alinea != 0:
-            pad = alinea - (offset % alinea)
-            items.append((None, f"_pad_{offset}", offset, pad, True))
-            offset += pad
-            hay_padding = True
-        items.append((campo, campo.nombre, offset, campo.tamanio, False))
-        offset += campo.tamanio
-    if offset % max_align != 0:
-        pad = max_align - (offset % max_align)
-        items.append((None, f"_tail_pad_{offset}", offset, pad, True))
-        offset += pad
-        hay_padding = True
-    return items, max(offset, 1), hay_padding
+    """Layout con las reglas de alineación de C: (campo, nombre, offset, tamaño, es_padding).
+
+    Los offsets los calcula brett (`brett.core.layout.disponer`), el dueño del layout de structs:
+    así kane lee los registros con los mismos offsets que brett informa."""
+    from brett.core.layout import disponer
+
+    por_nombre = {c.nombre: c for c in campos}
+    elementos, total = disponer([(c.nombre, c.tamanio, c.alineacion) for c in campos])
+    items = [(None if e.es_relleno else por_nombre[e.nombre], e.nombre, e.offset, e.tamanio, e.es_relleno)
+             for e in elementos]
+    return items, total, any(e.es_relleno for e in elementos)
 
 
 def _interpretar(campo: CampoSpec, chunk: bytes, prefijo: str):

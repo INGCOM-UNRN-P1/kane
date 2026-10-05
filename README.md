@@ -52,13 +52,16 @@ kane inspect alumnos.bin --header alumno.h --name Alumno
 
 # Archivo escrito por una máquina big-endian
 kane inspect red.bin --struct "int id, short puerto" --endian big
+
+# Qué cambió entre dos grabaciones del mismo struct, registro por registro y campo por campo
+kane diff antes.bin despues.bin --header alumno.h --name Alumno
 ```
 
 ### Qué se puede mapear
 
 - Escalares: `char`, `signed/unsigned char`, `short`, `int`, `long`, `long long` (con `unsigned`), `float`, `double`, `bool`, `enum` (como `int`) y los `stdint` (`int8_t`…`uint64_t`, `size_t`).
 - Arreglos de una dimensión de cualquier escalar (`int notas[3]`, `char nombre[20]`); la dimensión puede ser un número o un `#define` numérico de la propia cabecera.
-- El layout supone el ABI LP64 de x86-64 Linux (`long` = 8 bytes) e incluye el padding que inserta el compilador.
+- El layout supone el ABI LP64 de x86-64 Linux (`long` = 8 bytes) e incluye el padding que inserta el compilador. Los offsets los calcula brett (`brett.core.layout`), el dueño del layout de structs, así que coinciden con los que informa `brett audit`. `kane diff` ignora el relleno, cuyo contenido no está definido.
 - **No se soportan** (y kane lo informa con un error en vez de adivinar): punteros, struct/union anidados, bit-fields, arreglos multidimensionales, `long double` y tipos que no sean los de arriba.
 
 <!-- p1:referencia:inicio — generado por p1-tools/scripts/readme_generado.py: no editar a mano -->
@@ -74,6 +77,7 @@ kane inspect red.bin --struct "int id, short puerto" --endian big
 | Comando | Descripción |
 |:--|:--|
 | `kane check`, `kane inspect` | Inspecciona y desglosa el contenido de un archivo binario mapeándolo a un struct C. |
+| `kane diff` | Compara dos archivos binarios del mismo struct, registro por registro y campo por campo. |
 | `kane bits` | Muestra cómo queda guardado un valor en un tipo de C, bit a bit, y las operaciones de bits paso a paso. |
 | `kane report` | Genera directamente la sección de reporte Markdown de KANE para Dredd. |
 | `kane doctor` | Verifica el estado del entorno de inspección binaria KANE (Python, xxd/hexdump, GCC). |
@@ -82,7 +86,7 @@ Ayuda de cada comando: `kane <comando> -h`.
 
 ### Salida JSON
 
-Con `--json`, estos comandos emiten el resultado como JSON por la salida estándar, para usarlo desde scripts, ripley o dredd: `kane check`, `kane inspect`, `kane bits`, `kane doctor`. El de `doctor --json` lleva `schema_version` y `ok`.
+Con `--json`, estos comandos emiten el resultado como JSON por la salida estándar, para usarlo desde scripts, ripley o dredd: `kane check`, `kane inspect`, `kane diff`, `kane bits`, `kane doctor`. El de `doctor --json` lleva `schema_version` y `ok`.
 
 ### Códigos de salida
 
