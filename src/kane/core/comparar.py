@@ -13,8 +13,8 @@ def comparar_reportes(a: FileInspectionReport, b: FileInspectionReport) -> Dict[
     """Las diferencias entre dos inspecciones hechas con el mismo struct. El relleno se ignora: su
     contenido no está definido y difiere entre dos grabaciones correctas."""
     diferencias: List[Dict[str, Any]] = []
-    for ra, rb in zip(a.records, b.records):
-        for fa, fb in zip(ra.fields, rb.fields):
+    for ra, rb in zip(a.records, b.records, strict=False):
+        for fa, fb in zip(ra.fields, rb.fields, strict=False):
             if fa.is_padding or fa.raw_bytes_hex == fb.raw_bytes_hex:
                 continue
             diferencias.append({

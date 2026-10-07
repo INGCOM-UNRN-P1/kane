@@ -85,7 +85,7 @@ def _inspeccionar(
         return inspect_binary_file(file_path, struct_spec, endian=endian)
     except EspecificacionInvalida as exc:
         err_console.print(f"[bold red]Error:[/bold red] {exc}")
-        raise typer.Exit(code=2)
+        raise typer.Exit(code=2) from exc
 
 
 @app.command("inspect")
@@ -222,7 +222,7 @@ def bits_cmd(
                 resultado = bits.representar_entero(literal, tipo_c, endian)
     except bits.ValorInvalido as exc:
         err_console.print(f"[bold red]Error:[/bold red] {exc}")
-        raise typer.Exit(code=2)
+        raise typer.Exit(code=2) from exc
 
     if json_output:
         print(json.dumps({"schema_version": "1.0.0", "herramienta": "kane", "comando": "bits", "entrada": valor,
