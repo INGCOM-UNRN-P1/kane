@@ -54,7 +54,7 @@ def tipo_c(nombre: str) -> TipoC:
 
 def agrupar(bits: str, cada: int = 4) -> str:
     """'00101100' → '0010 1100' (de derecha a izquierda, como se leen los nibbles)."""
-    grupos = []
+    grupos: List[str] = []
     while bits:
         grupos.insert(0, bits[-cada:])
         bits = bits[:-cada]

@@ -209,6 +209,7 @@ def bits_cmd(
         if endian not in ("little", "big"):
             raise bits.ValorInvalido("--endian es little o big.")
         tipo_c = bits.tipo_c(tipo)
+        resultado: bits.RepresentacionEntera | bits.RepresentacionFlotante
         if bits.es_expresion(valor):
             resultado, pasos = bits.evaluar_bits(valor, tipo_c, endian)
         else:
@@ -341,7 +342,7 @@ def doctor_cmd(
     for c in diagnostico:
         color = "bold green" if c["estado"] == "OK" else ("bold yellow" if c["estado"] == "ADVERTENCIA" else "bold red")
         simbolo = "✓" if c["estado"] == "OK" else ("⚠️" if c["estado"] == "ADVERTENCIA" else "✗")
-        tabla.add_row(c["componente"], f"[{color}]{simbolo} {c['estado']}[/{color}]", c["detalle"])
+        tabla.add_row(str(c["componente"]), f"[{color}]{simbolo} {c['estado']}[/{color}]", str(c["detalle"]))
 
     console.print(tabla)
     if not todo_ok:
