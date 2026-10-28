@@ -44,8 +44,10 @@ def generar_seccion_markdown(report: FileInspectionReport) -> str:
         lines.append(f"- **Orden de bytes:** {report.byte_order}-endian")
     if report.remaining_bytes > 0:
         lines.append(f"- **Bytes truncados/residuales:** {report.remaining_bytes} B\n")
-        lines.append("> [!WARNING]\n> **Bytes Huérfanos:** El archivo binario contiene bytes finales que no completan un struct completo.\n")
-    else:
+    for h in report.hallazgos:
+        tipo = "CAUTION" if h.severidad == "error" else "WARNING"
+        lines.append(f"> [!{tipo}]\n> **{h.codigo}:** {h.mensaje}\n> \n> {h.sugerencia}\n")
+    if not report.hallazgos and report.struct_definition:
         lines.append("\n> [!TIP]\n> **Estructura Binaria Válida:** Todos los registros corresponden con el tamaño de struct esperado.\n")
 
     if report.records:
@@ -62,7 +64,8 @@ def generar_seccion_markdown(report: FileInspectionReport) -> str:
 
 
 def _codigo_salida(report: FileInspectionReport) -> int:
-    """0 si el archivo se parsea completo (`report.passed`); 1 si sobran bytes que no completan un registro."""
+    """0 si el archivo se parsea completo y sin errores (`report.passed`); 1 si un registro está truncado o los
+    registros están desalineados (las advertencias, como el relleno con basura, no cambian el código)."""
     return 0 if report.passed else 1
 
 
@@ -147,8 +150,9 @@ def inspect(
 
     console.print(table)
     console.print(f"[dim]Orden de bytes: {report.byte_order}-endian (los campos multibyte se leen así; kane no lo detecta).[/dim]")
-    if report.remaining_bytes > 0:
-        console.print(f"\n[bold yellow]⚠️ Advertencia: Quedan {report.remaining_bytes} bytes truncados al final del archivo.[/bold yellow]")
+    for h in report.hallazgos:
+        color = "red" if h.severidad == "error" else "yellow"
+        console.print(f"\n[bold {color}]{h.codigo} ({h.severidad}):[/bold {color}] {h.mensaje}\n[dim]↳ {h.sugerencia}[/dim]")
     raise typer.Exit(code=_codigo_salida(report))
 
 

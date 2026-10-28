@@ -5,7 +5,7 @@ import struct
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
-from kane.core.models import StructFieldLayout, BinaryRecord, FileInspectionReport
+from kane.core.models import StructFieldLayout, BinaryRecord, FileInspectionReport, HallazgoBinario
 
 
 class EspecificacionInvalida(ValueError):
@@ -409,6 +409,7 @@ def inspect_binary_file(
             fields=field_layouts
         ))
 
+    hallazgos = diagnosticar(data, campos, layout_items, record_size, records)
     return FileInspectionReport(
         file_path=str(file_path),
         file_size_bytes=file_size,
@@ -419,5 +420,79 @@ def inspect_binary_file(
         has_alignment_padding=has_padding,
         byte_order=endian,
         struct_definition=struct_spec,
-        passed=(remaining == 0)
+        passed=(remaining == 0) and not any(h.severidad == "error" for h in hallazgos),
+        hallazgos=hallazgos,
     )
+
+
+def diagnosticar(data: bytes, campos: List[CampoSpec], layout_items, record_size: int,
+                 records: List[BinaryRecord]) -> List[HallazgoBinario]:
+    """Qué dice el archivo del programa que lo escribió (Ola 18, QoL #548, #554):
+
+    - KANE003: el tamaño no es múltiplo del struct (con relleno) pero sí de la suma de sus campos: se
+      escribió campo por campo (`fwrite` de cada campo) y se lee con `fread` del struct, o al revés;
+      los registros quedan desalineados.
+    - KANE001: el último registro está incompleto (el programa se cortó o escribió de menos): qué
+      campos llegaron enteros y cuál quedó truncado.
+    - KANE002: el relleno tiene bytes distintos de 0: memoria sin inicializar que `fwrite` copió al
+      archivo (inofensiva al leer, pero muestra que el struct no se inicializó).
+    - KANE004: un `char[]` sin `'\0'`: se escribió una cadena que llenó el arreglo sin terminador.
+    """
+    hallazgos: List[HallazgoBinario] = []
+    tamanio = len(data)
+    empaquetado = sum(c.tamanio for c in campos)
+    resto = tamanio % record_size
+    if resto and empaquetado != record_size and tamanio % empaquetado == 0:
+        hallazgos.append(HallazgoBinario(
+            codigo="KANE003", severidad="error",
+            mensaje=(f"El archivo tiene {tamanio} B: no es múltiplo del struct ({record_size} B con relleno) pero sí "
+                     f"de sus campos sin relleno ({empaquetado} B, {tamanio // empaquetado} registros). Se escribió "
+                     "campo por campo y se lee con el struct entero (o al revés): los registros quedan desalineados."),
+            sugerencia=("Escribí y leé de la misma forma: fwrite(&r, sizeof(r), 1, f) y fread(&r, sizeof(r), 1, f), "
+                        "o campo por campo en los dos lados."),
+        ))
+    elif resto:
+        inicio = tamanio - resto
+        completos = [n for c, n, off, tam, pad in layout_items if not pad and off + tam <= resto]
+        cortado = next(((n, off, tam) for c, n, off, tam, pad in layout_items if not pad and off < resto < off + tam), None)
+        detalle = f"llegaron enteros {', '.join(completos)}" if completos else "no llegó ningún campo entero"
+        if cortado:
+            detalle += f" y '{cortado[0]}' quedó truncado ({resto - cortado[1]} de {cortado[2]} B)"
+        hallazgos.append(HallazgoBinario(
+            codigo="KANE001", severidad="error", registro=len(records) + 1, offset=inicio,
+            campo=cortado[0] if cortado else None,
+            mensaje=f"El último registro está incompleto: tiene {resto} de {record_size} B ({detalle}).",
+            sugerencia=("El programa se cortó o escribió de menos: revisá el valor que devuelve fwrite y que el "
+                        "archivo se cierre con fclose."),
+        ))
+
+    if any(h.codigo == "KANE003" for h in hallazgos):
+        return hallazgos  # con los registros corridos, el «relleno» y las cadenas que se leen no son tales
+    rellenos = [(off, tam) for c, n, off, tam, pad in layout_items if pad]
+    con_basura = [r.index for r in records
+                  if any(any(data[r.start_offset + off:r.start_offset + off + tam]) for off, tam in rellenos)]
+    if con_basura:
+        hallazgos.append(HallazgoBinario(
+            codigo="KANE002", severidad="advertencia", registro=con_basura[0],
+            offset=records[con_basura[0] - 1].start_offset + next(
+                off for off, tam in rellenos
+                if any(data[records[con_basura[0] - 1].start_offset + off:records[con_basura[0] - 1].start_offset + off + tam])),
+            mensaje=(f"En {len(con_basura)} de {len(records)} registros el relleno entre campos tiene bytes distintos de 0 "
+                     "(basura de la memoria que fwrite copió al archivo)."),
+            sugerencia="Inicializá el struct antes de completarlo: registro_t r = {0}; o memset(&r, 0, sizeof r);",
+        ))
+
+    for c, n, off, tam, pad in layout_items:
+        if pad or c is None or not c.es_cadena:
+            continue
+        sin_fin = [r.index for r in records if 0 not in data[r.start_offset + off:r.start_offset + off + tam]]
+        if sin_fin:
+            hallazgos.append(HallazgoBinario(
+                codigo="KANE004", severidad="advertencia", registro=sin_fin[0], campo=n,
+                offset=records[sin_fin[0] - 1].start_offset + off,
+                mensaje=(f"'{n}' ({c.nombre_tipo}) no tiene '\\0' en {len(sin_fin)} de {len(records)} registros: la "
+                         "cadena llenó el arreglo sin terminador."),
+                sugerencia=(f"Copiá como mucho {tam - 1} caracteres y terminá la cadena (strncpy no la termina si llena "
+                            f"el arreglo): {n}[{tam - 1}] = '\\0';"),
+            ))
+    return hallazgos

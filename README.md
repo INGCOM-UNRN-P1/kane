@@ -57,6 +57,22 @@ kane inspect red.bin --struct "int id, short puerto" --endian big
 kane diff antes.bin despues.bin --header alumno.h --name Alumno
 ```
 
+### Qué dice el archivo del programa que lo escribió
+
+Con el struct indicado, `inspect` informa además (en la tabla, el JSON —`hallazgos`— y la sección
+Markdown):
+
+- **`KANE001`** (error): el último registro está incompleto: qué campos llegaron enteros y cuál quedó
+  truncado (`'nota' quedó truncado (2 de 8 B)`).
+- **`KANE003`** (error): el tamaño no es múltiplo del struct con relleno pero sí de la suma de sus
+  campos: se escribió campo por campo y se lee con el struct entero (o al revés), y los registros
+  quedan desalineados.
+- **`KANE002`** (advertencia): el relleno entre campos tiene bytes distintos de 0, memoria sin
+  inicializar que `fwrite` copió (`registro_t r = {0};`).
+- **`KANE004`** (advertencia): un `char[]` sin `'\0'`: la cadena llenó el arreglo sin terminador.
+
+Los errores hacen salir con código 1; las advertencias, no.
+
 ### Qué se puede mapear
 
 - Escalares: `char`, `signed/unsigned char`, `short`, `int`, `long`, `long long` (con `unsigned`), `float`, `double`, `bool`, `enum` (como `int`) y los `stdint` (`int8_t`…`uint64_t`, `size_t`).
