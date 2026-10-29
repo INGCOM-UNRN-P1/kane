@@ -12,36 +12,53 @@ class EspecificacionInvalida(ValueError):
     """La definición del struct no se puede mapear con fidelidad a un layout binario."""
 
 
-# Formato de `struct`, tamaño y alineación (ABI LP64: x86-64 Linux, donde `long`
-# ocupa 8 bytes). La alineación de un escalar coincide con su tamaño. Una única
-# tabla evita que el tamaño (layout) y el formato (decodificación) discrepen,
-# que es lo que pasaba cuando el tamaño venía de otra fuente.
-TYPE_MAP: Dict[str, Tuple[str, int]] = {
-    "char": ("c", 1),
-    "signed char": ("b", 1),
-    "unsigned char": ("B", 1),
-    "bool": ("?", 1),
-    "short": ("h", 2),
-    "unsigned short": ("H", 2),
-    "int": ("i", 4),
-    "unsigned int": ("I", 4),
-    "long": ("q", 8),
-    "unsigned long": ("Q", 8),
-    "long long": ("q", 8),
-    "unsigned long long": ("Q", 8),
-    "float": ("f", 4),
-    "double": ("d", 8),
-    "int8_t": ("b", 1),
-    "uint8_t": ("B", 1),
-    "int16_t": ("h", 2),
-    "uint16_t": ("H", 2),
-    "int32_t": ("i", 4),
-    "uint32_t": ("I", 4),
-    "int64_t": ("q", 8),
-    "uint64_t": ("Q", 8),
-    "size_t": ("Q", 8),
-    "ssize_t": ("q", 8),
+# Cómo se decodifica cada tipo con el módulo `struct`. El tamaño y la alineación no están acá:
+# salen de la tabla por ABI de brett (`brett.core.layout.ABIS`), la misma con la que brett mide
+# el relleno y bishop dibuja los offsets (Ola 28). Para los enteros, la letra sólo dice si es con
+# signo (minúscula) o sin signo (mayúscula): la definitiva sale del tamaño en la ABI (`long` ocupa
+# 8 bytes en x86_64 y 4 en Windows o i386).
+TYPE_MAP: Dict[str, str] = {
+    "char": "c",
+    "signed char": "b",
+    "unsigned char": "B",
+    "bool": "?",
+    "short": "h",
+    "unsigned short": "H",
+    "int": "i",
+    "unsigned int": "I",
+    "long": "q",
+    "unsigned long": "Q",
+    "long long": "q",
+    "unsigned long long": "Q",
+    "float": "f",
+    "double": "d",
+    "int8_t": "b",
+    "uint8_t": "B",
+    "int16_t": "h",
+    "uint16_t": "H",
+    "int32_t": "i",
+    "uint32_t": "I",
+    "int64_t": "q",
+    "uint64_t": "Q",
+    "size_t": "Q",
+    "ssize_t": "q",
 }
+
+_ENTERO_POR_TAMANIO = {1: "b", 2: "h", 4: "i", 8: "q"}
+
+
+def abis() -> List[str]:
+    """Las ABIs que conoce brett (x86_64, x86_64-windows, i386, aarch64, riscv64…)."""
+    from brett.core.layout import ABIS
+
+    return list(ABIS)
+
+
+def validar_abi(abi: str) -> str:
+    if abi not in abis():
+        raise EspecificacionInvalida(f"ABI desconocida '{abi}'; usá {', '.join(abis())}.")
+    return abi
+
 
 _ALIAS_UNA_PALABRA = {"_Bool": "bool"}
 _ENTEROS = {
@@ -61,14 +78,25 @@ class CampoSpec:
     nombre: str
     tipo: str
     cantidad: Optional[int]  # None: escalar; N: arreglo de N elementos
+    abi: str = "x86_64"
+
+    @property
+    def _tamanio_alineacion(self) -> Tuple[int, int]:
+        from brett.core.layout import tamanio_alineacion
+
+        return tamanio_alineacion(self.tipo, self.abi)
 
     @property
     def formato(self) -> str:
-        return TYPE_MAP[self.tipo][0]
+        letra = TYPE_MAP[self.tipo]
+        if letra.lower() not in "bhiq":
+            return letra
+        entero = _ENTERO_POR_TAMANIO[self.tamanio_elemento]
+        return entero.upper() if letra.isupper() else entero
 
     @property
     def tamanio_elemento(self) -> int:
-        return TYPE_MAP[self.tipo][1]
+        return self._tamanio_alineacion[0]
 
     @property
     def es_cadena(self) -> bool:
@@ -80,7 +108,8 @@ class CampoSpec:
 
     @property
     def alineacion(self) -> int:
-        return self.tamanio_elemento
+        # No siempre coincide con el tamaño: en i386, `double` ocupa 8 bytes y se alinea a 4.
+        return self._tamanio_alineacion[1]
 
     @property
     def nombre_tipo(self) -> str:
@@ -110,7 +139,7 @@ def resolver_tipo(texto: str) -> str:
     if resto == ("char",):
         canon = "unsigned char" if sin_signo else ("signed char" if con_signo else "char")
     elif resto == ("long", "double"):
-        raise EspecificacionInvalida("'long double' (80 bits en x86-64) no está soportado")
+        raise EspecificacionInvalida("'long double' (80 bits en x86, con relleno según la ABI) no está soportado")
     elif resto in (("float",), ("double",)) and not (sin_signo or con_signo):
         canon = resto[0]
     elif resto in _ENTEROS:
@@ -128,7 +157,7 @@ def resolver_tipo(texto: str) -> str:
 _DECLARACION = re.compile(r"^(?P<cabeza>[^\[\]]*?)(?P<dims>(?:\s*\[[^\]]*\])*)\s*$")
 
 
-def _parsear_campo(item: str, constantes: Dict[str, int]) -> CampoSpec:
+def _parsear_campo(item: str, constantes: Dict[str, int], abi: str = "x86_64") -> CampoSpec:
     m = _DECLARACION.match(item)
     if not m or "*" in item or "(" in item or ":" in item:
         motivo = (
@@ -162,12 +191,14 @@ def _parsear_campo(item: str, constantes: Dict[str, int]) -> CampoSpec:
             )
         if cantidad <= 0:
             raise EspecificacionInvalida(f"campo '{item}': la dimensión debe ser mayor que cero.")
-    return CampoSpec(nombre=nombre, tipo=tipo, cantidad=cantidad)
+    return CampoSpec(nombre=nombre, tipo=tipo, cantidad=cantidad, abi=abi)
 
 
-def parse_struct_spec(spec_str: str, constantes: Optional[Dict[str, int]] = None) -> List[CampoSpec]:
-    """Parsea 'int id, char nombre[20], double promedio' en campos con tipo y tamaño reales."""
-    campos = [_parsear_campo(item.strip(), constantes or {}) for item in spec_str.split(",") if item.strip()]
+def parse_struct_spec(spec_str: str, constantes: Optional[Dict[str, int]] = None, abi: str = "x86_64") -> List[CampoSpec]:
+    """Parsea 'int id, char nombre[20], double promedio' en campos con el tamaño y la alineación de
+    cada tipo en la ABI pedida (por omisión x86_64 Linux, LP64)."""
+    validar_abi(abi)
+    campos = [_parsear_campo(item.strip(), constantes or {}, abi) for item in spec_str.split(",") if item.strip()]
     if not campos:
         raise EspecificacionInvalida("la especificación del struct no contiene ningún campo.")
     repetidos = {c.nombre for c in campos if [x.nombre for x in campos].count(c.nombre) > 1}
@@ -345,6 +376,7 @@ def inspect_binary_file(
     file_path: Path,
     struct_spec: Optional[str] = None,
     endian: str = "little",
+    abi: str = "x86_64",
 ) -> FileInspectionReport:
     """Lee un archivo binario y mapea sus registros y bytes considerando alineación y padding de C.
 
@@ -367,10 +399,11 @@ def inspect_binary_file(
             remaining_bytes=file_size,
             records=[],
             byte_order=endian,
+            abi=abi,
             passed=True
         )
 
-    campos = parse_struct_spec(struct_spec)
+    campos = parse_struct_spec(struct_spec, abi=abi)
     layout_items, record_size, has_padding = _calcular_layout(campos)
 
     records: List[BinaryRecord] = []
@@ -419,6 +452,7 @@ def inspect_binary_file(
         records=records,
         has_alignment_padding=has_padding,
         byte_order=endian,
+        abi=abi,
         struct_definition=struct_spec,
         passed=(remaining == 0) and not any(h.severidad == "error" for h in hallazgos),
         hallazgos=hallazgos,

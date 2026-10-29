@@ -11,6 +11,7 @@
 ### Qué cubre
 - Depuración, inspección y visualización interactiva de archivos binarios en disco generados por código C.
 - Decodificación estructurada de datos binarios mapeando un `struct` C, dado en línea (`--struct`) o leído de una cabecera `.h` (`--header` y `--name`).
+- Tamaño y alineación de los tipos según la ABI del programa que escribió el archivo (`--abi`: `x86_64` por omisión, `x86_64-windows` para MSYS2, donde `long` ocupa 4 bytes, `i386`, `aarch64`, `riscv64`). La tabla es la de brett (`brett.core.layout.ABIS`), la misma con la que brett mide el relleno y `bishop layout` lo dibuja.
 - Interpretación de los campos multibyte en little-endian (por defecto) o big-endian (`--endian`). El orden **no se detecta**: lo decide quien sabe qué máquina escribió el archivo, y el reporte lo declara.
 - Sin `--struct`/`--header`, `inspect` muestra una vista previa hexadecimal de los primeros 64 bytes (sin anotaciones de campos); el desglose por campo, tamaño, offset y alineación aparece al indicar el struct.
 - Representación de bits de valores de C (`kane bits`): complemento a dos, desborde, IEEE 754 de `float`/`double` y operaciones de bits paso a paso.
@@ -49,6 +50,9 @@ kane inspect datos.bin --struct "int id, float nota" --json
 
 # Struct leído de una cabecera .h (si define varios, elegí uno con --name)
 kane inspect alumnos.bin --header alumno.h --name Alumno
+
+# Archivo escrito por un programa compilado en Windows con MSYS2 (long de 4 bytes)
+kane inspect alumnos.bin --header alumno.h --abi x86_64-windows
 
 # Archivo escrito por una máquina big-endian
 kane inspect red.bin --struct "int id, short puerto" --endian big

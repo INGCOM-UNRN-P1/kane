@@ -23,7 +23,7 @@ wheels = [
 [[package]]
 name = "brett"
 version = "0.2.0"
-source = { git = "https://github.com/INGCOM-UNRN-P1/brett?rev=6cf076390529ee0ec04f7a0bdb7efd86748400d5#6cf076390529ee0ec04f7a0bdb7efd86748400d5" }
+source = { git = "https://github.com/INGCOM-UNRN-P1/brett?rev=044dfa4526760e14cc3941c5b7a0de1aacd960d3#044dfa4526760e14cc3941c5b7a0de1aacd960d3" }
 dependencies = [
     { name = "pyyaml" },
     { name = "rich" },
@@ -70,7 +70,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "brett", git = "https://github.com/INGCOM-UNRN-P1/brett?rev=6cf076390529ee0ec04f7a0bdb7efd86748400d5" },
+    { name = "brett", git = "https://github.com/INGCOM-UNRN-P1/brett?rev=044dfa4526760e14cc3941c5b7a0de1aacd960d3" },
     { name = "pydantic", specifier = ">=2.0.0" },
     { name = "rich", specifier = ">=13.0.0" },
     { name = "typer", specifier = ">=0.9.0" },

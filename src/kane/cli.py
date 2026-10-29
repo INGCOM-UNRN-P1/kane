@@ -75,6 +75,7 @@ def _inspeccionar(
     header: Optional[Path],
     struct_name: Optional[str],
     endian: str,
+    abi: str = "x86_64",
 ) -> FileInspectionReport:
     """Resuelve el struct (spec inline o cabecera .h) e inspecciona; los errores de uso salen con código 2."""
     try:
@@ -85,7 +86,7 @@ def _inspeccionar(
         if header:
             nombre, struct_spec = struct_de_cabecera(header, struct_name)
             err_console.print(f"[dim]Struct '{nombre}' leído de {header.name}: {struct_spec}[/dim]")
-        return inspect_binary_file(file_path, struct_spec, endian=endian)
+        return inspect_binary_file(file_path, struct_spec, endian=endian, abi=abi)
     except EspecificacionInvalida as exc:
         err_console.print(f"[bold red]Error:[/bold red] {exc}")
         raise typer.Exit(code=2) from exc
@@ -101,9 +102,10 @@ def inspect(
     header: Optional[Path] = typer.Option(None, "--header", "-H", help="Cabecera .h de la que se lee la definición del struct", exists=True, dir_okay=False),
     struct_name: Optional[str] = typer.Option(None, "--name", "-n", help="Nombre del struct dentro de --header (obligatorio si define varios)"),
     endian: str = typer.Option("little", "--endian", "-e", help="Orden de bytes con que se interpretan los campos multibyte: little o big (no se detecta)"),
+    abi: str = typer.Option("x86_64", "--abi", help="ABI con que se compiló el programa que escribió el archivo: tamaño y alineación de los tipos (x86_64, x86_64-windows para MSYS2, i386, aarch64, riscv64)."),
 ):
     """Inspecciona y desglosa el contenido de un archivo binario mapeándolo a un struct C."""
-    report = _inspeccionar(file_path, struct_spec, header, struct_name, endian)
+    report = _inspeccionar(file_path, struct_spec, header, struct_name, endian, abi)
     struct_spec = report.struct_definition
 
     if output_md:
@@ -164,6 +166,7 @@ def diff_cmd(
     header: Optional[Path] = typer.Option(None, "--header", "-H", help="Cabecera .h de la que se lee la definición del struct", exists=True, dir_okay=False),
     struct_name: Optional[str] = typer.Option(None, "--name", "-n", help="Nombre del struct dentro de --header (obligatorio si define varios)"),
     endian: str = typer.Option("little", "--endian", "-e", help="Orden de bytes de los campos multibyte: little o big"),
+    abi: str = typer.Option("x86_64", "--abi", help="ABI con que se compiló el programa que escribió el archivo: tamaño y alineación de los tipos (x86_64, x86_64-windows para MSYS2, i386, aarch64, riscv64)."),
     json_output: bool = typer.Option(False, "--json", help="Emitir salida en formato JSON estructurado"),
 ) -> None:
     """Compara dos archivos binarios del mismo struct, registro por registro y campo por campo."""
@@ -172,8 +175,8 @@ def diff_cmd(
     if not struct_spec and not header:
         err_console.print("[bold red]Error:[/bold red] indicá el struct con --struct o --header.")
         raise typer.Exit(code=2)
-    a = _inspeccionar(archivo_a, struct_spec, header, struct_name, endian)
-    b = _inspeccionar(archivo_b, a.struct_definition or struct_spec, None, None, endian)
+    a = _inspeccionar(archivo_a, struct_spec, header, struct_name, endian, abi)
+    b = _inspeccionar(archivo_b, a.struct_definition or struct_spec, None, None, endian, abi)
     resultado = comparar_reportes(a, b)
 
     if json_output:
@@ -280,9 +283,10 @@ def report_cmd(
     header: Optional[Path] = typer.Option(None, "--header", "-H", help="Cabecera .h de la que se lee la definición del struct", exists=True, dir_okay=False),
     struct_name: Optional[str] = typer.Option(None, "--name", "-n", help="Nombre del struct dentro de --header (obligatorio si define varios)"),
     endian: str = typer.Option("little", "--endian", "-e", help="Orden de bytes con que se interpretan los campos multibyte: little o big (no se detecta)"),
+    abi: str = typer.Option("x86_64", "--abi", help="ABI con que se compiló el programa que escribió el archivo: tamaño y alineación de los tipos (x86_64, x86_64-windows para MSYS2, i386, aarch64, riscv64)."),
 ):
     """Genera directamente la sección de reporte Markdown de KANE para Dredd."""
-    report = _inspeccionar(file_path, struct_spec, header, struct_name, endian)
+    report = _inspeccionar(file_path, struct_spec, header, struct_name, endian, abi)
     md_content = generar_seccion_markdown(report)
     if output:
         output.parent.mkdir(parents=True, exist_ok=True)

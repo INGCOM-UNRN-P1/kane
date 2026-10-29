@@ -42,6 +42,7 @@ class FileInspectionReport(BaseModel):
     records: List[BinaryRecord] = Field(default_factory=list)
     has_alignment_padding: bool = False
     byte_order: str = "little"
+    abi: str = "x86_64"  # tamaños y alineaciones de los tipos (brett.core.layout.ABIS)
     struct_definition: Optional[str] = None
     passed: bool = True
     hallazgos: List[HallazgoBinario] = Field(default_factory=list)
