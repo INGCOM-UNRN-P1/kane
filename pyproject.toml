@@ -35,7 +35,7 @@ dependencies = [
     # Núcleo común del ecosistema (N-ECO-14): contrato de línea de comandos y textos en español.
     "yutani @ git+https://github.com/INGCOM-UNRN/yutani@6e42d7ab8b89a1084381f8aea0999a498a844f6c",
     # brett es el dueño del layout de structs: kane lee los registros con sus mismos offsets.
-    "brett @ git+https://github.com/INGCOM-UNRN-P1/brett@044dfa4526760e14cc3941c5b7a0de1aacd960d3",
+    "brett @ git+https://github.com/INGCOM-UNRN-P1/brett@a5d1c737b35c227bb47cbc41943c8c9174ec52e6",
 ]
 
 [project.urls]
