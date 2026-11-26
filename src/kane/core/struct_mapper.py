@@ -255,6 +255,45 @@ def _cuerpo_balanceado(texto: str, abre: int) -> Tuple[str, int]:
     raise EspecificacionInvalida("llave sin cerrar en la definición del struct.")
 
 
+def _resolver_con_dwarf(header: Path, nombres_candidatos: List[str], abi: str = "x86_64") -> Dict[str, str]:
+    """Resuelve especificaciones de structs usando DWARF vía `brett.core.dwarf_layout`."""
+    try:
+        from brett.core.dwarf_layout import capturar_layouts
+    except ImportError:
+        return {}
+    if not nombres_candidatos:
+        return {}
+    layouts, _ = capturar_layouts(header, nombres_candidatos, abi)
+    resueltos: Dict[str, str] = {}
+    for nombre, layout in layouts.items():
+        partes: List[str] = []
+        valido = True
+        for campo in layout.campos:
+            if (
+                not campo.nombre
+                or campo.bits != 0
+                or "*" in campo.tipo
+                or "][" in campo.sufijo_array
+                or any(w in campo.tipo.split() for w in ("struct", "union"))
+            ):
+                valido = False
+                break
+            try:
+                tipo_canon = resolver_tipo(campo.tipo)
+            except EspecificacionInvalida:
+                valido = False
+                break
+            partes.append(f"{tipo_canon} {campo.nombre}{campo.sufijo_array}")
+        if valido and partes:
+            spec = ", ".join(partes)
+            try:
+                parse_struct_spec(spec, abi=abi)
+                resueltos[nombre] = spec
+            except EspecificacionInvalida:
+                pass
+    return resueltos
+
+
 def structs_de_cabecera(header: Path) -> Dict[str, StructCabecera]:
     """Devuelve {nombre: definición} para cada struct definido en la cabecera.
 
@@ -268,6 +307,7 @@ def structs_de_cabecera(header: Path) -> Dict[str, StructCabecera]:
     )
 
     encontrados: Dict[str, StructCabecera] = {}
+    pendientes_dwarf: List[Tuple[List[str], EspecificacionInvalida]] = []
     for m in _STRUCT_TIPO.finditer(sin_preprocesador):
         cuerpo, fin = _cuerpo_balanceado(sin_preprocesador, m.end() - 1)
         alias = re.match(r"\s*([A-Za-z_]\w*)\s*;", sin_preprocesador[fin:])
@@ -281,6 +321,7 @@ def structs_de_cabecera(header: Path) -> Dict[str, StructCabecera]:
             spec = ", ".join(_miembros_de_cuerpo(cuerpo))
             parse_struct_spec(spec, constantes)
         except EspecificacionInvalida as exc:
+            pendientes_dwarf.append((nombres, exc))
             for nombre in nombres:
                 encontrados[nombre] = StructCabecera(spec=None, error=str(exc))
             continue
@@ -293,6 +334,14 @@ def structs_de_cabecera(header: Path) -> Dict[str, StructCabecera]:
         )
         for nombre in nombres:
             encontrados[nombre] = StructCabecera(spec=spec_resuelta)
+
+    if pendientes_dwarf:
+        candidatos = [n for nombres, _ in pendientes_dwarf for n in nombres]
+        dwarf_specs = _resolver_con_dwarf(header, candidatos)
+        for nombres, _ in pendientes_dwarf:
+            for nombre in nombres:
+                if nombre in dwarf_specs:
+                    encontrados[nombre] = StructCabecera(spec=dwarf_specs[nombre])
     return encontrados
 
 

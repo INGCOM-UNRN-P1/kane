@@ -284,3 +284,17 @@ def test_el_reporte_markdown_incluye_struct_y_orden_de_bytes(tmp_path, cabecera)
     assert res.exit_code == 0, res.output
     md = salida.read_text(encoding="utf-8")
     assert "big-endian" in md and "int x, int y" in md
+
+
+@necesita_gcc
+def test_cabecera_con_macro_compuesta_se_resuelve_con_dwarf(tmp_path):
+    h = tmp_path / "compuesta.h"
+    h.write_text(
+        "#define LARGO (8 + 4)\n"
+        "typedef struct {\n"
+        "    int id;\n"
+        "    char codigo[LARGO];\n"
+        "} Item;\n",
+        encoding="utf-8",
+    )
+    assert struct_de_cabecera(h, "Item") == ("Item", "int id, char codigo[12]")
