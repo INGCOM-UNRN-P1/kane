@@ -26,6 +26,9 @@ jobs:
       - name: Sincronizar dependencias
         run: uv sync --all-extras
 
+      - name: Instalar gdb (DWARF para brett)
+        run: sudo apt-get update && sudo apt-get install -y gdb
+
       - name: Ejecutar suite de pruebas
         run: uv run pytest -q
 
